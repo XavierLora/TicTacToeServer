@@ -1,23 +1,42 @@
 package test;
 import server.SocketServer;
 
+/**
+ * The `SocketServerTest` class is responsible for testing the functionality of the `SocketServer` class.
+ */
 public class SocketServerTest {
+
+    /**
+     * The main method that runs the test methods for the `SocketServer` class.
+     *
+     * @param args Command-line arguments (not used in this example).
+     */
     public static void main(String[] args) {
         testDefaultConstructor();
         testParameterizedConstructor();
         testNegativePort();
     }
 
+    /**
+     * Tests the default constructor of the `SocketServer` class.
+     */
     public static void testDefaultConstructor() {
         SocketServer server = new SocketServer();
         assert server.getPort() == 5000;
     }
 
+    /**
+     * Tests the parameterized constructor of the `SocketServer` class.
+     */
     public static void testParameterizedConstructor() {
         SocketServer server = new SocketServer(8080);
         assert server.getPort() == 8080;
     }
 
+    /**
+     * Tests the behavior when a negative port is provided to the constructor.
+     * Expects an `IllegalArgumentException` to be thrown.
+     */
     public static void testNegativePort() {
         try {
             SocketServer server = new SocketServer(-123);
