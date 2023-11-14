@@ -1,110 +1,133 @@
 package server;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
+import java.util.Enumeration;
 
 /**
- * The `SocketServer` class represents a server application that listens for and handles incoming socket requests.
+ *  The main class for TicTacToe Server that sets up the socket server
+ *
+ * @author Ahmad Suleiman
  */
 public class SocketServer {
-
     /**
-     * The default port number for the server.
+     * Used for printing server logs of different levels
+     */
+    private final Logger LOGGER;
+
+    /*
+    The socket server's port number
      */
     private final int PORT;
 
     /**
-     * Logger for the server class
+     * ServerSocket instance
      */
-    private static final Logger logger = Logger.getLogger(SocketServer.class.getName());
-    /**
-     * Main method to start the server.
-     *
-     */
-
-    //Server Socket
     private ServerSocket serverSocket;
+
+    /**
+     * The main function of the application
+     * It instantiates the class, sets up the server and start accepting client's request
+     * @param args command line arguments
+     */
     public static void main(String[] args) {
-        SocketServer socketServer = new SocketServer();
-        socketServer.setup();
-        socketServer.startAcceptingRequest();
-    }
-
-
-    /**
-     * Default constructor for the `SocketServer` class. It initializes the server with the default port number.
-     */
-    public SocketServer() {
-        this.PORT = 5650;
-    }
-
-    /**
-     * Parameterized constructor for the `SocketServer` class. It allows setting a custom port number for the server.
-     *
-     * @param PORT The port number on which the server will listen.
-     */
-    public SocketServer(int PORT) {
-        if(PORT <0){
-            throw new IllegalArgumentException("Port number cannot be negative");
+        try {
+            SocketServer socketServer = new SocketServer();
+            socketServer.setup();
+            socketServer.startAcceptingRequest();
+        }catch (Exception e){
+            System.out.println(e.getMessage());
         }
-        this.PORT = PORT;
     }
 
     /**
-     * Sets up the server. Override this method to configure server settings and initialize resources.
+     * Default constructor with default port = 5000
+     *
+     * @throws Exception when invalid port is provided
      */
-    public void setup() {
-        try{
+    public SocketServer() throws Exception{
+        this(5850);
+    }
+
+    /**
+     * Constructor that set the {@link #PORT} attribute
+     *
+     * @param port The socket server's port number
+     * @throws Exception when invalid port is provided
+     */
+    public SocketServer(int port) throws Exception{
+        if(port < 0){
+            throw new Exception("Port number cannot be negative");
+        }
+        PORT = port;
+        LOGGER = Logger.getLogger(SocketServer.class.getName());
+    }
+
+    /**
+     * Sets up the socket server
+     */
+    private void setup() {
+        try {
             serverSocket = new ServerSocket(PORT);
+            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+            String localIP = "Unknown";
 
-            //Get Server Info
-            InetAddress localhost = InetAddress.getLocalHost();
-            String hostname = localhost.getHostName();
-            String hostAddress = localhost.getHostAddress();
+            while (networkInterfaces.hasMoreElements()) {
+                NetworkInterface networkInterface = networkInterfaces.nextElement();
+                Enumeration<InetAddress> interfaceAddresses = networkInterface.getInetAddresses();
 
-            logger.log(Level.INFO, "Server started on host: " + hostname + ", address: " + hostAddress + ", port: " + PORT);
-        }catch (IOException e){
-            logger.log(Level.SEVERE, "Error setting up the server: " + e.getMessage());
+                while (interfaceAddresses.hasMoreElements()) {
+                    InetAddress address = interfaceAddresses.nextElement();
+
+                    if (!address.isLoopbackAddress() && !address.isLinkLocalAddress() && !address.isMulticastAddress()) {
+                        localIP = address.getHostAddress();
+                        break;
+                    }
+                }
+
+                if (!localIP.equals("Unknown")) {
+                    break;
+                }
+            }
+
+            LOGGER.log(Level.INFO, "Server started on local IP: " + localIP + ", port: " + PORT);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Error setting up the server: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
     /**
-     * Starts accepting incoming requests on the server. Override this method to define request-handling logic.
+     * Start accepting client's request
      */
-    public void startAcceptingRequest() {
+    private void startAcceptingRequest() {
         try {
-            int clientCount = 0;
-            while (clientCount < 2) {
-                // Accept a client connection
-                Socket socket = serverSocket.accept();
-                clientCount++;
+            // Accept socket connection from the first player and create a new handler to handle all connections
+            Socket socketPlayer1 = serverSocket.accept();
+            LOGGER.log(Level.INFO,"New Socket Client Connect with IP: " + socketPlayer1.getRemoteSocketAddress());
+            ServerHandler serverHandlerPlayer1 = new ServerHandler(socketPlayer1, "Bob");
+            serverHandlerPlayer1.start();
 
-                // Generate a unique username for each client (e.g., User1, User2)
-                String username = "User" + clientCount;
-
-                logger.log(Level.INFO, "Accepted client connection for " + username);
-
-                // Create a ServerHandler thread for this client connection
-                ServerHandler handler = new ServerHandler(socket, username);
-
-                // Start the thread to handle the client connection
-                handler.start();
-            }
-        }catch(IOException e){
-            logger.log(Level.SEVERE, "Error accepting client connections: "  + e.getMessage());
+            // Accept socket connection from the second player and create a new handler to handle all connections
+            Socket socketPlayer2 = serverSocket.accept();
+            LOGGER.log(Level.INFO,"New Socket Client Connect with IP: " + socketPlayer2.getRemoteSocketAddress());
+            ServerHandler serverHandlerPlayer2 = new ServerHandler(socketPlayer2, "Smith");
+            serverHandlerPlayer2.start();
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE,"Server Error: Client Connection Failed", e);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE,"Server Error: Unknown Exception Occurred", e);
         }
     }
 
     /**
-     * Gets the port number on which the server is listening.
+     * Getter for PORT attribute
      *
-     * @return The port number of the server.
+     * @return PORT
      */
     public int getPort() {
         return PORT;

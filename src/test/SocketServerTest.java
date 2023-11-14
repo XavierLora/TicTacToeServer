@@ -11,7 +11,7 @@ public class SocketServerTest {
      *
      * @param args Command-line arguments (not used in this example).
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         testDefaultConstructor();
         testParameterizedConstructor();
         testNegativePort();
@@ -20,7 +20,7 @@ public class SocketServerTest {
     /**
      * Tests the default constructor of the `SocketServer` class.
      */
-    public static void testDefaultConstructor() {
+    public static void testDefaultConstructor() throws Exception {
         SocketServer server = new SocketServer();
         assert server.getPort() == 5000;
     }
@@ -28,7 +28,7 @@ public class SocketServerTest {
     /**
      * Tests the parameterized constructor of the `SocketServer` class.
      */
-    public static void testParameterizedConstructor() {
+    public static void testParameterizedConstructor() throws Exception {
         SocketServer server = new SocketServer(8080);
         assert server.getPort() == 8080;
     }
@@ -41,7 +41,7 @@ public class SocketServerTest {
         try {
             SocketServer server = new SocketServer(-123);
             System.err.println("Error: No exception thrown for a negative port");
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             System.out.println("Successfully caught an exception for a negative port: " + e.getMessage());
         }
     }

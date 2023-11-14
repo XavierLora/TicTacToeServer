@@ -9,7 +9,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import model.Event;
+import socket.GamingResponse;
 import socket.Request;
 import socket.Response;
 
@@ -24,34 +26,72 @@ public class ServerHandler extends Thread {
     private DataInputStream dataInputStream;
     private DataOutputStream dataOutputStream;
     private Gson gson;
-    private static Event gameEvent;
-    private static final Logger logger = Logger.getLogger(ServerHandler.class.getName());
+    /**
+     * Will be used to store game move
+     * A RDBMS will be used to store game move in later milestones
+     */
+    public static Event gameEvent = new Event(1, null, null, null, null, -1);
+    private final Logger logger;
 
     /**
      * Constructor for the `ServerHandler` class that accepts a Socket and a username.
      *
-     * @param socket The Socket associated with the client connection.
+     * @param socket   The Socket associated with the client connection.
      * @param username The username of the client.
      */
     public ServerHandler(Socket socket, String username) {
+        logger = Logger.getLogger(ServerHandler.class.getName());
         this.socket = socket;
         this.currentUsername = username;
 
-        gson = new GsonBuilder().serializeNulls().create();
-
-        gameEvent = new Event();
-        gameEvent.setEventId(0);
-        gameEvent.setSender(null);
-        gameEvent.setOpponent(null);
-        gameEvent.setStatus(null);
-        gameEvent.setTurn(null);
-        gameEvent.setMove(-1);
+        this.gson = new GsonBuilder().serializeNulls().create();
 
         try {
             dataInputStream = new DataInputStream(socket.getInputStream());
             dataOutputStream = new DataOutputStream(socket.getOutputStream());
         } catch (IOException e) {
             logger.log(Level.SEVERE, "Error initializing input/output streams: " + e.getMessage());
+        }
+    }
+    /**
+     * Runs immediately after the thread is started
+     * The function continuously waits for a client request and sends a response
+     * Until a client disconnects
+     */
+    @Override
+    public void run() {
+        // Keep accepting request until client disconnects are send invalid request
+        while (true) {
+            try {
+                String serializedRequest = dataInputStream.readUTF(); // read/receive clients request (blocking operation)
+                Request request = gson.fromJson(serializedRequest, Request.class); // deserialized the request
+                logger.log(Level.INFO, "Client Request: " + currentUsername + " - " + request.getType());
+
+                Response response = handleRequest(request); // get response to client's request
+                String serializedResponse = gson.toJson(response); // serialize the response
+                dataOutputStream.writeUTF(serializedResponse); // write/send the response
+                dataOutputStream.flush(); // Flush the stream, force response to go
+            } catch (EOFException e) {
+                logger.log(Level.INFO, "Server Info: Client Disconnected: " + currentUsername + " - " + socket.getRemoteSocketAddress());
+                close();
+                break;
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Server Info: Client Connection Failed", e);
+            } catch (JsonSyntaxException e) {
+                logger.log(Level.SEVERE, "Server Info: Serialization Error", e);
+            }
+        }
+    }
+    /**
+     * Closes the server handler. This method can be used to perform any cleanup or resource release operations.
+     */
+    public void close() {
+        try {
+            dataInputStream.close();
+            dataOutputStream.close();
+            socket.close();
+        } catch (IOException e) {
+            logger.log(Level.SEVERE, "Error closing resources: " + e.getMessage());
         }
     }
 
@@ -61,8 +101,8 @@ public class ServerHandler extends Thread {
      * @param request The request to be handled by the server.
      * @return A response to the request.
      */
-    public Response handleRequest(Request request){
-        switch(request.getType()){
+    public Response handleRequest(Request request) {
+        switch (request.getType()) {
             case SEND_MOVE:
                 int move = gson.fromJson(request.getData(), Integer.class);
                 return handleSendMove(move);
@@ -82,12 +122,16 @@ public class ServerHandler extends Thread {
      * @return A response indicating the result of the move operation.
      */
     public Response handleSendMove(int move) {
-        if (gameEvent.getMove() == -1) {
+        if(move < 0 || move > 8){ // Check for valid move
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Move");
+        }
+        if(gameEvent.getTurn() == null || !gameEvent.getTurn().equals(currentUsername)) {
+            // Save the move in the server and return a standard Response
             gameEvent.setMove(move);
-            // Implement logic to check and update the player's turn if needed
-            return new Response(Response.ResponseStatus.SUCCESS, "Move sent successfully.");
-        } else {
-            return new Response(Response.ResponseStatus.FAILURE, "You can't make consecutive moves.");
+            gameEvent.setTurn(currentUsername);
+            return new Response(Response.ResponseStatus.SUCCESS, "Move Added");
+        }else{
+            return new Response(Response.ResponseStatus.FAILURE, "Not your turn to move");
         }
     }
 
@@ -97,47 +141,17 @@ public class ServerHandler extends Thread {
      * @return A response indicating the result of the request for a move.
      */
     public Response handleRequestMove() {
-        int move = gameEvent.getMove();
-        if (move != -1) {
-            // Implement logic to ensure a valid move by the opponent
-            gameEvent.setMove(-1); // Clear the move after it's been sent
-            return new Response(Response.ResponseStatus.SUCCESS, "Received opponent's move: " + move);
-        } else {
-            return new Response(Response.ResponseStatus.FAILURE, "No valid move by the opponent.");
+        GamingResponse response = new GamingResponse();
+        response.setStatus(Response.ResponseStatus.SUCCESS);
+        // check if there is a valid move made by my opponent
+        if (gameEvent.getMove() != -1 && !gameEvent.getTurn().equals(currentUsername)){
+            response.setMove(gameEvent.getMove());
+            // Delete the move
+            gameEvent.setMove(-1);
+            gameEvent.setTurn(null);
+        }else{
+            response.setMove(-1);
+        }
+        return response;
         }
     }
-
-    @Override
-    public void run() {
-        while (true) {
-            try {
-                String serializedRequest = dataInputStream.readUTF();
-                Request request = gson.fromJson(serializedRequest, Request.class);
-                Response response = handleRequest(request);
-
-                String serializedResponse = gson.toJson(response);
-                dataOutputStream.writeUTF(serializedResponse);
-                dataOutputStream.flush();
-            } catch (EOFException e) {
-                // Client disconnected, close the connection
-                close();
-                break;
-            } catch (IOException e) {
-                logger.log(Level.SEVERE, "Error while handling request: " + e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Closes the server handler. This method can be used to perform any cleanup or resource release operations.
-     */
-    public void close() {
-        try {
-            dataInputStream.close();
-            dataOutputStream.close();
-            socket.close();
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error closing resources: " + e.getMessage());
-        }
-    }
-}
