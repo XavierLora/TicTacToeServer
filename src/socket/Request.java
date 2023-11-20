@@ -11,7 +11,7 @@ public class Request {
     public enum RequestType {
         LOGIN,
         REGISTER,
-        UPATE_PAIRING,
+        UPDATE_PAIRING,
         SEND_INVITATION,
         ACCEPT_INVITATION,
         DECLINE_INVITATION,

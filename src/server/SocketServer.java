@@ -106,21 +106,19 @@ public class SocketServer {
      */
     private void startAcceptingRequest() {
         try {
-            // Accept socket connection from the first player and create a new handler to handle all connections
-            Socket socketPlayer1 = serverSocket.accept();
-            LOGGER.log(Level.INFO,"New Socket Client Connect with IP: " + socketPlayer1.getRemoteSocketAddress());
-            ServerHandler serverHandlerPlayer1 = new ServerHandler(socketPlayer1, "Bob");
-            serverHandlerPlayer1.start();
+            while (true) {
+                // Accept socket connection and create a new handler for each connection
+                Socket socket = serverSocket.accept();
+                LOGGER.log(Level.INFO, "New Socket Client Connect with IP: " + socket.getRemoteSocketAddress());
 
-            // Accept socket connection from the second player and create a new handler to handle all connections
-            Socket socketPlayer2 = serverSocket.accept();
-            LOGGER.log(Level.INFO,"New Socket Client Connect with IP: " + socketPlayer2.getRemoteSocketAddress());
-            ServerHandler serverHandlerPlayer2 = new ServerHandler(socketPlayer2, "Smith");
-            serverHandlerPlayer2.start();
+                // Create a new instance of ServerHandler without passing a hardcoded username
+                ServerHandler serverHandler = new ServerHandler(socket);
+                serverHandler.start();
+            }
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE,"Server Error: Client Connection Failed", e);
+            LOGGER.log(Level.SEVERE, "Server Error: Client Connection Failed", e);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE,"Server Error: Unknown Exception Occurred", e);
+            LOGGER.log(Level.SEVERE, "Server Error: Unknown Exception Occurred", e);
         }
     }
 
