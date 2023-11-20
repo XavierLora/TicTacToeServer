@@ -51,8 +51,8 @@ public class SocketClientHelper {
      * Can be accessed only the within the class (for singleton design pattern)
      */
     public SocketClientHelper() {
-        String HOSTNAME = "192.168.68.106";
-        int PORT = 5850;
+        String HOSTNAME = "128.153.184.92";
+        int PORT = 5000;
 
         LOGGER = Logger.getLogger(SocketServer.class.getName());
         gson = new GsonBuilder().serializeNulls().create();

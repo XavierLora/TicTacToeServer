@@ -127,13 +127,12 @@ public class ServerHandler extends Thread {
      */
     public Response handleRequest(Request request) throws SQLException {
         switch (request.getType()) {
-            case LOGIN:
-                // handle LOGIN
-                break;
-
             case REGISTER:
                 User user = gson.fromJson(request.getData(), User.class);
                 return handleRegister(user);
+            case LOGIN:
+                User username = gson.fromJson(request.getData(), User.class);
+                return handleLogin(username);
 
             case UPDATE_PAIRING:
                 return handleUpdatePairing();
@@ -170,7 +169,6 @@ public class ServerHandler extends Thread {
             default:
                 return new Response(Response.ResponseStatus.FAILURE, "Invalid request type.");
         }
-        return new Response(Response.ResponseStatus.FAILURE, "Invalid request type.");
     }
 
     /**
@@ -320,10 +318,19 @@ public class ServerHandler extends Thread {
 
         DatabaseHelper dbHelper = DatabaseHelper.getInstance();
         try {
-            // Get the list of available users, user invitation, and user invitation response
+            // Check if the user is online (logged in)
+            User currentUser = dbHelper.getUser(currentUsername);
+            if (currentUser == null || !currentUser.isOnline()) {
+                return new PairingResponse(Response.ResponseStatus.FAILURE, "User not logged in", null, null, null);
+            }
+
+            // Get the list of available users who are online (logged in)
             List<User> availableUsers = dbHelper.getAvailableUsers(currentUsername);
+
+            // Get user invitation and user invitation response
             Event userInvitation = dbHelper.getUserInvitation(currentUsername);
             Event userInvitationResponse = dbHelper.getUserInvitationResponse(currentUsername);
+
             // Create a PairingResponse object with the obtained information
             return new PairingResponse(Response.ResponseStatus.SUCCESS, "Pairing information retrieved successfully",
                     availableUsers, userInvitation, userInvitationResponse);
@@ -333,6 +340,8 @@ public class ServerHandler extends Thread {
             return new PairingResponse(Response.ResponseStatus.FAILURE, "Error handling pairing update", null, null, null);
         }
     }
+
+
     public Response handleSendInvitation(String opponent) throws SQLException {
         // Check if the user is logged in
         if (currentUsername == null || currentUsername.isEmpty()) {
