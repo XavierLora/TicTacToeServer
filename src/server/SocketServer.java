@@ -50,7 +50,7 @@ public class SocketServer {
      * @throws Exception when invalid port is provided
      */
     public SocketServer() throws Exception{
-        this(5000);
+        this(5850);
     }
 
     /**

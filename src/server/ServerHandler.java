@@ -505,9 +505,33 @@ public class ServerHandler extends Thread {
             // Get the event from the database
             Event event = dbHelper.getEvent(currentEventId);
 
-            // Check if the event exists and the status is PLAYING
-            if (event == null || event.getStatus() != Event.EventStatus.PLAYING) {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid event or event not in PLAYING state");
+            // Check if the event exists
+            if (event == null) {
+                return new Response(Response.ResponseStatus.FAILURE, "Invalid event");
+            }
+
+            // Log information for debugging
+            logger.log(Level.INFO, "Abort Game - Event ID: " + currentEventId +
+                    ", Event Status: " + event.getStatus() +
+                    ", Sender: " + event.getSender() +
+                    ", Opponent: " + event.getOpponent());
+
+            // Get the usernames of users involved in the event
+            String player1Username = event.getSender();
+            String player2Username = event.getOpponent();
+
+            // Set the users back to online status
+            User player1 = dbHelper.getUser(player1Username);
+            User player2 = dbHelper.getUser(player2Username);
+
+            if (player1 != null) {
+                player1.setOnline(true);
+                dbHelper.updateUser(player1);
+            }
+
+            if (player2 != null) {
+                player2.setOnline(true);
+                dbHelper.updateUser(player2);
             }
 
             // Set the status to ABORTED
@@ -526,6 +550,9 @@ public class ServerHandler extends Thread {
             return new Response(Response.ResponseStatus.FAILURE, "Database error");
         }
     }
+
+
+
 
 
 

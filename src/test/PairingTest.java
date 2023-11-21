@@ -11,9 +11,17 @@ import model.User;
 
 import java.sql.SQLException;
 
+/**
+ * The PairingTest class contains a series of test cases for the pairing functionality.
+ */
 public class PairingTest {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
+    /**
+     * The main method that runs the pairing test cases.
+     *
+     * @param args Command line arguments (not used)
+     * @throws InterruptedException Thrown if the main thread is interrupted during sleep
+     */
     public static void main(String[] args) throws InterruptedException {
         Thread mainThread = new Thread(() -> {
             try {
@@ -128,21 +136,43 @@ public class PairingTest {
 
         mainThread.interrupt();
     }
-
+    /**
+     * Executes a login test for a given user using the provided SocketClientHelper.
+     *
+     * @param sc             The SocketClientHelper for communication.
+     * @param user           The user to be used for login.
+     * @param expectedStatus The expected response status.
+     * @param expectedMessage The expected response message.
+     */
             private static void loginTest(SocketClientHelper sc, User user, Response.ResponseStatus expectedStatus, String expectedMessage) {
                 Request loginRequest = new Request(Request.RequestType.LOGIN, gson.toJson(user));
                 Response loginResponse = sc.sendRequest(loginRequest, Response.class);
                 System.out.println(gson.toJson(loginResponse));
                 // Add assertions based on expectedStatus and expectedMessage
             }
-
+    /**
+     * Executes a registration test for a given user using the provided SocketClientHelper.
+     *
+     * @param sc             The SocketClientHelper for communication.
+     * @param user           The user to be used for registration.
+     * @param expectedStatus The expected response status.
+     * @param expectedMessage The expected response message.
+     */
             private static void registerTest(SocketClientHelper sc, User user, Response.ResponseStatus expectedStatus, String expectedMessage) {
                 Request registerRequest = new Request(Request.RequestType.REGISTER, gson.toJson(user));
                 Response registerResponse = sc.sendRequest(registerRequest, Response.class);
                 System.out.println(gson.toJson(registerResponse));
                 // Add assertions based on expectedStatus and expectedMessage
             }
-
+    /**
+     * Executes a pairing update test using the provided SocketClientHelper.
+     *
+     * @param sc                   The SocketClientHelper for communication.
+     * @param expectedStatus       The expected response status.
+     * @param expectedMessage      The expected response message.
+     * @param expectedAvailableUsers The expected number of available users in the pairing response.
+     * @return The PairingResponse received from the server.
+     */
             private static PairingResponse updatePairingTest(SocketClientHelper sc, PairingResponse.ResponseStatus expectedStatus, String expectedMessage, int expectedAvailableUsers) {
                 // Add a delay to allow the server to process previous requests
                 try {
@@ -158,20 +188,41 @@ public class PairingTest {
                 return pairingResponse;
             }
 
-
+    /**
+     * Executes an acknowledgment test for a given event ID using the provided SocketClientHelper.
+     *
+     * @param client         The SocketClientHelper for communication.
+     * @param eventId        The event ID to be acknowledged.
+     * @param expectedStatus The expected response status.
+     * @param message        The expected response message.
+     */
             public static void acknowledgeResponseTest(SocketClientHelper client, int eventId, Response.ResponseStatus expectedStatus, String message) {
                     Request request = new Request(Request.RequestType.ACKNOWLEDGE_RESPONSE, String.valueOf(eventId));
                     Response response = client.sendRequest(request, Response.class);
                     assertResponse(response, expectedStatus, message);
             }
-
+    /**
+     * Executes an invitation test for sending an invitation to another user.
+     *
+     * @param sender         The SocketClientHelper sending the invitation.
+     * @param receiver       The user receiving the invitation.
+     * @param expectedStatus The expected response status.
+     * @param message        The expected response message.
+     */
             // Method for sending an invitation
             public static void sendInvitationTest(SocketClientHelper sender, User receiver, Response.ResponseStatus expectedStatus, String message) {
                     Request request = new Request(Request.RequestType.SEND_INVITATION, gson.toJson(receiver.getUsername()));
                     Response response = sender.sendRequest(request, Response.class);
                     assertResponse(response, expectedStatus, message);
             }
-
+    /**
+     * Executes an invitation acceptance test for a given event ID.
+     *
+     * @param receiver       The SocketClientHelper receiving the invitation.
+     * @param eventId        The event ID to be accepted.
+     * @param expectedStatus The expected response status.
+     * @param message        The expected response message.
+     */
             // Method for accepting an invitation
             public static void acceptInvitationTest(SocketClientHelper receiver, int eventId, Response.ResponseStatus expectedStatus, String message) {
                     Request request = new Request(Request.RequestType.ACCEPT_INVITATION, String.valueOf(eventId));
@@ -179,11 +230,18 @@ public class PairingTest {
                     assertResponse(response, expectedStatus, message);
             }
 
-            // Method for aborting a game
+
+    /**
+     * Executes a game abortion test using the provided SocketClientHelper.
+     *
+     * @param player         The SocketClientHelper for communication.
+     * @param expectedStatus The expected response status.
+     * @param message        The expected response message.
+     */
             public static void abortGameTest(SocketClientHelper player, Response.ResponseStatus expectedStatus, String message) {
-                Request request = new Request(Request.RequestType.ABORT_GAME, String.valueOf(message)/* provide appropriate data here */);
-                    Response response = player.sendRequest(request, Response.class);
-                    assertResponse(response, expectedStatus, message);
+                Request request = new Request(Request.RequestType.ABORT_GAME, ""); // No need to pass a message
+                Response response = player.sendRequest(request, Response.class);
+                assertResponse(response, expectedStatus, message);
             }
 
             // Helper method to assert the response
@@ -192,6 +250,14 @@ public class PairingTest {
                 assert response.getStatus() == expectedStatus : message + " - Expected: " + expectedStatus + ", Actual: " + response.getStatus();
                 System.out.println(message + " - " + response.getMessage());
             }
+    /**
+     * Executes a decline invitation test for a given event ID.
+     *
+     * @param receiver       The SocketClientHelper receiving the invitation.
+     * @param eventId        The event ID to be declined.
+     * @param expectedStatus The expected response status.
+     * @param message        The expected response message.
+     */
             public static void declineInvitationTest(SocketClientHelper receiver, int eventId, Response.ResponseStatus expectedStatus, String message) {
                 Request request = new Request(Request.RequestType.DECLINE_INVITATION, String.valueOf(eventId));
                 Response response = receiver.sendRequest(request, Response.class);
