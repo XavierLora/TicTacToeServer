@@ -6,43 +6,32 @@ import socket.Response;
  */
 public class ResponseTest {
 
-    /**
-     * The main method that runs the test methods for the `Response` class.
-     *
-     * @param args Command-line arguments (not used in this example).
-     */
     public static void main(String[] args) {
-        testDefaultConstructor();
-        testParameterizedConstructor();
-        testGettersAndSetters();
-    }
 
-    /**
-     * Tests the default constructor of the `Response` class.
-     */
-    public static void testDefaultConstructor() {
-        Response response = new Response();
-        assert response.getStatus() == Response.ResponseStatus.SUCCESS;
-        assert response.getMessage() == null;
-    }
+        /*
+         * Tests constructors
+         */
+        Response response1 = new Response();
 
-    /**
-     * Tests the parameterized constructor of the `Response` class.
-     */
-    public static void testParameterizedConstructor() {
-        Response response = new Response(Response.ResponseStatus.FAILURE, "Error message");
-        assert response.getStatus() == Response.ResponseStatus.FAILURE;
-        assert response.getMessage().equals("Error message");
-    }
+        System.out.println("Response 1: Testing Default Constructor");
+        System.out.println(((response1.getStatus()==null) ? "PASSED":"FAILED") + ": status");
+        System.out.println(((response1.getMessage()==null) ? "PASSED":"FAILED") + ": message");
 
-    /**
-     * Tests the getters and setters of the `Response` class.
-     */
-    public static void testGettersAndSetters() {
-        Response response = new Response();
-        response.setStatus(Response.ResponseStatus.FAILURE);
-        response.setMessage("New error message");
-        assert response.getStatus() == Response.ResponseStatus.FAILURE;
-        assert response.getMessage().equals("New error message");
+        Response response2 = new Response(Response.ResponseStatus.SUCCESS, "Invitation Sent");
+
+        System.out.println("Response 2: Testing Default Constructor");
+        System.out.println(((response2.getStatus()==Response.ResponseStatus.SUCCESS) ? "PASSED":"FAILED") + ": status");
+        System.out.println(((response2.getMessage().equals("Invitation Sent")) ? "PASSED":"FAILED") + ": message");
+
+        /*
+         * Tests all getters and setters
+         */
+        Response response3 = new Response();
+        response3.setStatus(Response.ResponseStatus.SUCCESS);
+        response3.setMessage("Invitation Sent");
+
+        System.out.println("Response 3: Testing Default Constructor");
+        System.out.println(((response3.getStatus()==Response.ResponseStatus.SUCCESS) ? "PASSED":"FAILED") + ": status");
+        System.out.println(((response3.getMessage().equals("Invitation Sent")) ? "PASSED":"FAILED") + ": message");
     }
 }

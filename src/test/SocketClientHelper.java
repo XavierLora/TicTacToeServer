@@ -51,7 +51,7 @@ public class SocketClientHelper {
      * Can be accessed only the within the class (for singleton design pattern)
      */
     public SocketClientHelper() {
-        String HOSTNAME = "192.168.68.106";
+        String HOSTNAME = "127.0.0.1";
         int PORT = 5850;
 
         LOGGER = Logger.getLogger(SocketServer.class.getName());

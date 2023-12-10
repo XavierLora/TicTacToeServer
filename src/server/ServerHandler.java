@@ -25,35 +25,55 @@ import socket.Response;
  */
 public class ServerHandler extends Thread {
 
-    private Socket socket;         // Class attribute to store the Socket
-    private String currentUsername; // Class attribute to store the username
-    private DataInputStream dataInputStream;
-    private DataOutputStream dataOutputStream;
-    private Gson gson;
+    /**
+     * Used for printing logs of different levels
+     */
+    private final Logger LOGGER;
+
+    /**
+     * Socket connection with a client
+     */
+    private final Socket socket;
+
+    /**
+     * Input stream to get clients {@link socket.Request}
+     */
+    private final DataInputStream inputStream;
+
+    /**
+     * Output Stream to send client a {@link socket.Response}
+     */
+    private final DataOutputStream outputStream;
+
+    /**
+     * Used to serialize/deserialize objects
+     */
+    private final Gson gson;
+
     /**
      * Will be used to store game move
      * A RDBMS will be used to store game move in later milestones
      */
-    private int currentEventId;
-    private final Logger logger;
+    public int currentEventId;
 
     /**
-     * Constructor for the `ServerHandler` class that accepts a Socket and a username.
-     *
-     * @param socket   The Socket associated with the client connection.
+     * Username of the current client of this socket connection
      */
-    public ServerHandler(Socket socket) {
-        logger = Logger.getLogger(ServerHandler.class.getName());
+    public String currentUsername;
+
+    /**
+     * Default constructor
+     * Initializes all attributes
+     * @param socket Client's socket connection after server accepts
+     * @throws IOException When no valid input or output stream from socket
+     */
+    public ServerHandler(Socket socket) throws IOException {
+        LOGGER = Logger.getLogger(ServerHandler.class.getName());
+
         this.socket = socket;
-
         this.gson = new GsonBuilder().serializeNulls().create();
-
-        try {
-            dataInputStream = new DataInputStream(socket.getInputStream());
-            dataOutputStream = new DataOutputStream(socket.getOutputStream());
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error initializing input/output streams: " + e.getMessage());
-        }
+        this.inputStream = new DataInputStream(socket.getInputStream());
+        this.outputStream = new DataOutputStream(socket.getOutputStream());
     }
 
     /**
@@ -66,496 +86,343 @@ public class ServerHandler extends Thread {
         // Keep accepting request until client disconnects are send invalid request
         while (true) {
             try {
-                String serializedRequest = dataInputStream.readUTF(); // read/receive clients request (blocking operation)
+                String serializedRequest = inputStream.readUTF(); // read/receive clients request (blocking operation)
                 Request request = gson.fromJson(serializedRequest, Request.class); // deserialized the request
-                logger.log(Level.INFO, "Client Request: " + currentUsername + " - " + request.getType());
+                LOGGER.log(Level.INFO,"Client Request: " + currentUsername + " - " + request.getType());
 
                 Response response = handleRequest(request); // get response to client's request
                 String serializedResponse = gson.toJson(response); // serialize the response
-                dataOutputStream.writeUTF(serializedResponse); // write/send the response
-                dataOutputStream.flush(); // Flush the stream, force response to go
+                outputStream.writeUTF(serializedResponse); // write/send the response
+                outputStream.flush(); // Flush the stream, force response to go
             } catch (EOFException e) {
-                logger.log(Level.INFO, "Server Info: Client Disconnected: " + currentUsername + " - " + socket.getRemoteSocketAddress());
-                close();
+                LOGGER.log(Level.INFO,"Server Info: Client Disconnected: " + currentUsername + " - " + socket.getRemoteSocketAddress());
+                closeSocket();
                 break;
             } catch (IOException e) {
-                logger.log(Level.SEVERE, "Server Info: Client Connection Failed", e);
-            } catch (JsonSyntaxException e) {
-                logger.log(Level.SEVERE, "Server Info: Serialization Error", e);
+                LOGGER.log(Level.SEVERE,"Server Info: Client Connection Failed", e);
+            }  catch (JsonSyntaxException e) {
+                LOGGER.log(Level.SEVERE,"Server Info: Serialization Error", e);
             } catch (SQLException e) {
-                throw new RuntimeException(e);
+                LOGGER.log(Level.SEVERE,"Server Info: Database Error", e);
             }
         }
     }
 
     /**
-     * Closes the server handler. This method can be used to perform any cleanup or resource release operations.
+     * Closes clients connection
      */
-    public void close() {
+    private void closeSocket() {
+        // Close socket connection and all IO streams
         try {
-            dataInputStream.close();
-            dataOutputStream.close();
             socket.close();
+            inputStream.close();
+            outputStream.close();
 
-            // Check if the user has previously logged in
-            if (currentUsername != null) {
-                // Get the User object corresponding to the currentUsername
+            if(currentUsername != null) {
+                //Set Offline
                 User user = DatabaseHelper.getInstance().getUser(currentUsername);
-
-                // Set the user online attribute to false
                 user.setOnline(false);
-
-                // Update the user in the database
                 DatabaseHelper.getInstance().updateUser(user);
 
-                // Abort any event that is not either COMPLETED or ABORTED
+                //Change the status of all playing and pending gaming
                 DatabaseHelper.getInstance().abortAllUserEvents(currentUsername);
             }
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error closing resources: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,"Server Info: Unable to close socket", e);
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Error updating user or aborting events: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,"Server Info: Database Exception Occurred", e);
         }
     }
 
-
     /**
-     * This method is the entry point for the server thread. It should be overridden to define the server's behavior.
-     *
-     * @param request The request to be handled by the server.
-     * @return A response to the request.
+     * Handles all clients {@link Request.RequestType}
+     * @param request The request to handle
+     * @return Response to client's request
      */
-    public Response handleRequest(Request request) throws SQLException {
+    private Response handleRequest(Request request) throws SQLException {
+        // Decide which function to call for different types of request
+        if (request == null) {
+            // Handle the case where the request is null
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Request");
+        }
         switch (request.getType()) {
-            case REGISTER:
-                User user = gson.fromJson(request.getData(), User.class);
-                return handleRegister(user);
-            case LOGIN:
-                User username = gson.fromJson(request.getData(), User.class);
-                return handleLogin(username);
-
-            case UPDATE_PAIRING:
-                return handleUpdatePairing();
-
-            case SEND_INVITATION:
-                String opponent = gson.fromJson(request.getData(), String.class);
-                return handleSendInvitation(opponent);
-
-            case ACCEPT_INVITATION:
-                int eventIdAccept = Integer.parseInt(request.getData());
-                return handleAcceptInvitation(eventIdAccept);
-
-            case DECLINE_INVITATION:
-                int eventIdDecline = Integer.parseInt(request.getData());
-                return handleDeclineInvitation(eventIdDecline);
-
-            case ACKNOWLEDGE_RESPONSE:
-                int eventIdAcknowledge = Integer.parseInt(request.getData());
-                return handleAcknowledgeResponse(eventIdAcknowledge);
-
             case REQUEST_MOVE:
                 return handleRequestMove();
-
             case SEND_MOVE:
                 int move = gson.fromJson(request.getData(), Integer.class);
                 return handleSendMove(move);
-
-            case ABORT_GAME:
-                return handleAbortGame();
-
+            case REGISTER:
+                User registerUser = gson.fromJson(request.getData(), User.class);
+                return handleRegister(registerUser);
+            case LOGIN:
+                User loginUser = gson.fromJson(request.getData(), User.class);
+                return handleLogin(loginUser);
+            case UPDATE_PAIRING:
+                return handleUpdatePairing();
+            case SEND_INVITATION:
+                String opponent = gson.fromJson(request.getData(), String.class);
+                return handleSendInvitation(opponent);
+            case ACCEPT_INVITATION:
+                int eventIdToAccept = gson.fromJson(request.getData(), Integer.class);
+                return handleAcceptInvitation(eventIdToAccept);
+            case DECLINE_INVITATION:
+                int eventIdToDecline = gson.fromJson(request.getData(), Integer.class);
+                return handleDeclineInvitation(eventIdToDecline);
+            case ACKNOWLEDGE_RESPONSE:
+                int eventIdToAcknowledge = gson.fromJson(request.getData(), Integer.class);
+                return handleAcknowledgeResponse(eventIdToAcknowledge);
             case COMPLETE_GAME:
                 return handleCompleteGame();
-
-            default:
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid request type.");
+            case ABORT_GAME:
+                return handleAbortGame();
+            default: // Invalid request type
+                return new Response(Response.ResponseStatus.FAILURE, "Invalid Request");
         }
     }
 
-    /**
-     * Handles the "SEND_MOVE" request type.
-     *
-     * @param move The move to be sent.
-     * @return A response indicating the result of the move operation.
-     */
-    public Response handleSendMove(int move) {
-        try {
-            // Create a local Event variable using the database helper function getEvent()
-            Event gameEvent = DatabaseHelper.getInstance().getEvent(currentEventId);
-
-            // Check for a valid move
-            if (move < 0 || move > 8) {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid Move");
-            }
-
-            // Check if it's the player's turn
-            if (gameEvent.getTurn() == null || !gameEvent.getTurn().equals(currentUsername)) {
-                // Set the move in the local Event
-                gameEvent.setMove(move);
-                gameEvent.setTurn(currentUsername);
-
-                // Update the event in the database using the database helper function updateEvent()
-                DatabaseHelper.getInstance().updateEvent(gameEvent);
-
-                // Return a standard Response
-                return new Response(Response.ResponseStatus.SUCCESS, "Move Added");
-            } else {
-                return new Response(Response.ResponseStatus.FAILURE, "Not your turn to move");
-            }
-        } catch (SQLException e) {
-            // Handle SQLException
-            logger.log(Level.SEVERE, "Error handling send move: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Database error");
-        }
-    }
 
     /**
-     * Handles the "REQUEST_MOVE" request type.
-     *
-     * @return A response indicating the result of the request for a move.
+     * Handle request of type {@link Request.RequestType#REQUEST_MOVE}
+     * @return a game response with move information
+     * @throws SQLException When database error occurs
      */
-    public Response handleRequestMove() {
-        try {
-            // Create a local Event variable using the database helper function getEvent()
-            Event gameEvent = DatabaseHelper.getInstance().getEvent(currentEventId);
-
+    private GamingResponse handleRequestMove() throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(currentEventId);
+        if(event != null) {
             GamingResponse response = new GamingResponse();
             response.setStatus(Response.ResponseStatus.SUCCESS);
 
-            // Check if the game is still active
-            if (gameEvent.getStatus() == Event.EventStatus.ABORTED) {
+            if (event.getStatus() == Event.EventStatus.ABORTED) {
                 response.setActive(false);
                 response.setMessage("Opponent Abort");
-            } else if (gameEvent.getStatus() == Event.EventStatus.COMPLETED) {
+                return response;
+            } else if (event.getStatus() == Event.EventStatus.COMPLETED) {
                 response.setActive(false);
                 response.setMessage("Opponent Deny Play Again");
+                return response;
             } else {
                 response.setActive(true);
+                response.setMessage("Move Update");
             }
-
-            // Check if there is a valid move made by the opponent
-            if (gameEvent.getMove() != -1 && !gameEvent.getTurn().equals(currentUsername)) {
-                response.setMove(gameEvent.getMove());
-
-                // Delete the move in the local Event
-                gameEvent.setMove(-1);
-                gameEvent.setTurn(null);
-
-                // Update the event in the database using the database helper function updateEvent()
-                DatabaseHelper.getInstance().updateEvent(gameEvent);
+            // check if there is a valid move made by my opponent
+            if (event.getMove() != -1 && !event.getTurn().equals(currentUsername)) {
+                response.setMove(event.getMove());
+                // Delete the move
+                event.setMove(-1);
+                event.setTurn(null);
+                DatabaseHelper.getInstance().updateEvent(event);
             } else {
                 response.setMove(-1);
             }
-
             return response;
-        } catch (SQLException e) {
-            // Handle SQLException
-            logger.log(Level.SEVERE, "Error handling request move: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Database error");
+        } else {
+            return new GamingResponse(Response.ResponseStatus.FAILURE, "No active Game", -1, false);
         }
     }
 
-    public Response handleRegister(User user) {
-        try {
-            // Check if the username already exists
-            if (DatabaseHelper.getInstance().isUsernameExists(user.getUsername())) {
-                return new Response(Response.ResponseStatus.FAILURE, "Username already exists.");
-            }
-
-            // If the username doesn't exist, create the user in the database
-            DatabaseHelper.getInstance().createUser(user);
-
-            return new Response(Response.ResponseStatus.SUCCESS, "Registration successful.");
-        } catch (SQLException e) {
-            // Log any database-related errors
-            logger.log(Level.SEVERE, "Error handling registration: " + e.getMessage());
-            return new Response(Response.ResponseStatus.FAILURE, "Internal server error.");
-        }
-    }
     /**
-     * Handles the "LOGIN" request type.
-     *
-     * @param user The user object containing login credentials.
-     * @return A response indicating the result of the login operation.
+     * Handle request of type {@link Request.RequestType#SEND_MOVE}
+     * @param move the move to be added to the game
+     * @return a standard response
+     * @throws SQLException When database error occurs
      */
-    public Response handleLogin(User user) {
-        try {
-            // Get the user from the database
-            User storedUser = DatabaseHelper.getInstance().getUser(user.getUsername());
-
-            // Check if the user exists and the password is correct
-            if (storedUser != null && storedUser.getPassword().equals(user.getPassword())) {
-                // Set currentUsername
-                currentUsername = storedUser.getUsername();
-
-                // Set the user as online
-                storedUser.setOnline(true);
-
-                // Update the user in the database
-                DatabaseHelper.getInstance().updateUser(storedUser);
-
-                return new Response(Response.ResponseStatus.SUCCESS, "Login successful");
+    private Response handleSendMove(int move) throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(currentEventId);
+        if(event != null) {
+            if (move < 0 || move > 8) { // Check for valid move
+                return new Response(Response.ResponseStatus.FAILURE, "Invalid Move");
+            }
+            if (event.getTurn() == null || !event.getTurn().equals(currentUsername)) {
+                // Save the move in the server and return a standard Response
+                event.setMove(move);
+                event.setTurn(currentUsername);
+                DatabaseHelper.getInstance().updateEvent(event);
+                return new Response(Response.ResponseStatus.SUCCESS, "New mode added to Game");
             } else {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid username or password");
+                return new Response(Response.ResponseStatus.FAILURE, "Not your turn to move");
             }
-        } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Error handling login request", e);
-            return new Response(Response.ResponseStatus.FAILURE, "Internal server error");
+        } else {
+            return new Response(Response.ResponseStatus.FAILURE, "No active Game");
         }
     }
+
     /**
-     * Create a new function called handleUpdatePairing().
-     * This function takes no parameters and returns a PairingResponse class.
-     * The function should first check if a user is already logged in by checking the value of currentUsername.
-     * If the user is not logged in, return a FAILURE response with an appropriate message and null values for all other attributes.
-     * Otherwise, the function should return a PairingResponse object.
-     * Use the database helper function getAvailableUsers(), getUserInvitation(), and getUserInvitationResponse() to construct the PairingResponse object.
+     * Handle request of type {@link Request.RequestType#REGISTER}
+     * @param user The user object to register in the database
+     * @return a standard response
+     * @throws SQLException When database error occurs
      */
-    public PairingResponse handleUpdatePairing() {
-        // Check if the user is logged in
-        if (currentUsername == null || currentUsername.isEmpty()) {
-            return new PairingResponse(Response.ResponseStatus.FAILURE, "User not logged in", null, null, null);
-        }
-
-        DatabaseHelper dbHelper = DatabaseHelper.getInstance();
-        try {
-            // Check if the user is online (logged in)
-            User currentUser = dbHelper.getUser(currentUsername);
-            if (currentUser == null || !currentUser.isOnline()) {
-                return new PairingResponse(Response.ResponseStatus.FAILURE, "User not logged in", null, null, null);
-            }
-
-            // Get the list of available users who are online (logged in)
-            List<User> availableUsers = dbHelper.getAvailableUsers(currentUsername);
-
-            // Get user invitation and user invitation response
-            Event userInvitation = dbHelper.getUserInvitation(currentUsername);
-            Event userInvitationResponse = dbHelper.getUserInvitationResponse(currentUsername);
-
-            // Create a PairingResponse object with the obtained information
-            return new PairingResponse(Response.ResponseStatus.SUCCESS, "Pairing information retrieved successfully",
-                    availableUsers, userInvitation, userInvitationResponse);
-        } catch (Exception e) {
-            // Log and return a failure response in case of an exception
-            logger.log(Level.SEVERE, "Error handling pairing update: " + e.getMessage(), e);
-            return new PairingResponse(Response.ResponseStatus.FAILURE, "Error handling pairing update", null, null, null);
+    private Response handleRegister(User user) throws SQLException {
+        //Checking if Username is already in Database
+        if(DatabaseHelper.getInstance().isUsernameExists(user.getUsername())) {
+            return new Response(Response.ResponseStatus.FAILURE,"User already exists");
+        } else {
+            DatabaseHelper.getInstance().createUser(user);
+            return new Response(Response.ResponseStatus.SUCCESS,  "User added: " + user.getUsername());
         }
     }
 
+    /**
+     * Handle request of type {@link Request.RequestType#LOGIN}
+     * @param loginUser The user object to log in to the game
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleLogin(User loginUser) throws SQLException {
+        Response response;
 
-    public Response handleSendInvitation(String opponent) throws SQLException {
-        // Check if the user is logged in
-        if (currentUsername == null || currentUsername.isEmpty()) {
-            return new Response(Response.ResponseStatus.FAILURE, "User not logged in");
+        User user = DatabaseHelper.getInstance().getUser(loginUser.getUsername());
+        if(user == null) {
+            response = new Response(Response.ResponseStatus.FAILURE,"User does not exists");
+        } else if(!user.getPassword().equals(loginUser.getPassword())) {
+            response = new Response(Response.ResponseStatus.FAILURE,"Incorrect Password");
+        } else {
+            user.setOnline(true);
+            DatabaseHelper.getInstance().updateUser(user);
+            currentUsername = user.getUsername();
+            response = new Response(Response.ResponseStatus.SUCCESS, "Logged in as: " + user.getUsername());
         }
-        DatabaseHelper dbHelper = DatabaseHelper.getInstance();
+        return response;
+    }
 
-        // Check if the opponent is available to receive an invitation
-        if (!dbHelper.isUserAvailable(opponent)) {
-            return new Response(Response.ResponseStatus.FAILURE, "Selected opponent is not available");
+    /**
+     * Handle request of type {@link Request.RequestType#UPDATE_PAIRING}
+     * @return pairing update with available players, invitation, and invitation response
+     * @throws SQLException When database error occurs
+     */
+    private PairingResponse handleUpdatePairing() throws SQLException {
+        if(currentUsername == null) {
+            return new PairingResponse(Response.ResponseStatus.FAILURE, "Not logged in", null, null, null);
         }
+        //Getting all available users
+        List<User> availableUsers = DatabaseHelper.getInstance().getAvailableUsers(currentUsername);
+        //Checking for user's invitation
+        Event invitation = DatabaseHelper.getInstance().getUserInvitation(currentUsername);
+        //Checking for user's response to invitation
+        Event invitationResponse = DatabaseHelper.getInstance().getUserInvitationResponse(currentUsername);
 
-        try {
-            // Create a new Event for the invitation
-            Event invitationEvent = new Event();
-            invitationEvent.setSender(currentUsername);
-            invitationEvent.setOpponent(opponent);
-            invitationEvent.setStatus(Event.EventStatus.PENDING);
-            invitationEvent.setMove(-1);
+        return new PairingResponse(Response.ResponseStatus.SUCCESS, "Update", availableUsers, invitation, invitationResponse);
+    }
 
-            // Save the invitation event to the database
-            DatabaseHelper.getInstance().createEvent(invitationEvent);
+    /**
+     * Handle request of type {@link Request.RequestType#SEND_INVITATION}
+     * @param opponent Username of the opponent to sent invitation to
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleSendInvitation(String opponent) throws SQLException {
+        Response response;
+        if(currentUsername == null) {
+            return new Response(Response.ResponseStatus.FAILURE, "Not logged in");
+        }
+        //Checking if user is available for request
+        if(DatabaseHelper.getInstance().isUserAvailable(opponent)) {
+            Event event = new Event();
+            event.setSender(currentUsername);
+            event.setOpponent(opponent);
+            event.setStatus(Event.EventStatus.PENDING);
+            event.setMove(-1);
 
-            return new Response(Response.ResponseStatus.SUCCESS, "Invitation sent successfully");
-        } catch (SQLException e) {
-            // Log and return a failure response in case of an exception
-            logger.log(Level.SEVERE, "Error handling send invitation: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Error sending invitation");
+            DatabaseHelper.getInstance().createEvent(event);
+            response = new Response(Response.ResponseStatus.SUCCESS, "Game Invitation Sent");
+        } else {
+            response = new Response(Response.ResponseStatus.FAILURE, "User can not accept invitation at the moment");
+        }
+        return response;
+    }
+
+    /**
+     * Handle request of type {@link Request.RequestType#ACCEPT_INVITATION}
+     * @param eventId The eventId of the invitation to accept
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleAcceptInvitation(int eventId) throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(eventId);
+        //Ensure it's a valid invitation and it belongs to the user
+        if(event != null && event.getStatus() == Event.EventStatus.PENDING && event.getOpponent().equals(currentUsername)) {
+            event.setStatus(Event.EventStatus.ACCEPTED);
+
+            //abort all other unattended events
+            DatabaseHelper.getInstance().abortAllUserEvents(currentUsername);
+            DatabaseHelper.getInstance().updateEvent(event);
+            currentEventId = eventId;
+            return new Response(Response.ResponseStatus.SUCCESS, "Invitation Accepted");
+        }else {
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Event ID");
         }
     }
-        public Response handleAcceptInvitation(int eventId) {
-            // Check if the user is logged in
-            if (currentUsername == null || currentUsername.isEmpty()) {
-                return new Response(Response.ResponseStatus.FAILURE, "User not logged in");
-            }
 
-            try {
-                // Retrieve the Event object with the corresponding eventId
-                Event invitationEvent = DatabaseHelper.getInstance().getEvent(eventId);
+    /**
+     * Handle request of type {@link Request.RequestType#DECLINE_INVITATION}
+     * @param eventId The eventId of the invitation to decline
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleDeclineInvitation(int eventId) throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(eventId);
+        if(event != null && event.getStatus() == Event.EventStatus.PENDING) {
+            event.setStatus(Event.EventStatus.DECLINED);
+            DatabaseHelper.getInstance().updateEvent(event);
+            return new Response(Response.ResponseStatus.SUCCESS, "Invite Declined");
+        } else {
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Event ID");
+        }
+    }
 
-                // Check if the event exists, the status is PENDING, and the opponent is the current user
-                if (invitationEvent == null || invitationEvent.getStatus() != Event.EventStatus.PENDING
-                        || !invitationEvent.getOpponent().equals(currentUsername)) {
-                    return new Response(Response.ResponseStatus.FAILURE, "Invalid invitation acceptance");
-                }
-
-                // Change the status of the event to ACCEPTED
-                invitationEvent.setStatus(Event.EventStatus.ACCEPTED);
-
-                // Abort any other pending invitations for the user
+    /**
+     * Handle request of type {@link Request.RequestType#ACKNOWLEDGE_RESPONSE}
+     * @param eventId The eventId of the invitation response to Acknowledge
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleAcknowledgeResponse(int eventId) throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(eventId);
+        if(event != null && event.getSender().equals(currentUsername)) {
+            if(event.getStatus() == Event.EventStatus.ACCEPTED) {
+                //abort all other unattended events
                 DatabaseHelper.getInstance().abortAllUserEvents(currentUsername);
-
-                // Update the event in the database
-                DatabaseHelper.getInstance().updateEvent(invitationEvent);
-
-                // Set currentEventId to the accepted eventId
                 currentEventId = eventId;
-
-                return new Response(Response.ResponseStatus.SUCCESS, "Invitation accepted successfully");
-            } catch (SQLException e) {
-                // Log and return a failure response in case of an exception
-                logger.log(Level.SEVERE, "Error handling accept invitation: " + e.getMessage(), e);
-                return new Response(Response.ResponseStatus.FAILURE, "Error accepting invitation");
-            }
-        }
-    public Response handleDeclineInvitation(int eventId) {
-        // Check if the user is logged in
-        if (currentUsername == null || currentUsername.isEmpty()) {
-            return new Response(Response.ResponseStatus.FAILURE, "User not logged in");
-        }
-
-        try {
-            // Retrieve the Event object with the corresponding eventId
-            Event invitationEvent = DatabaseHelper.getInstance().getEvent(eventId);
-
-            // Check if the event exists, the status is PENDING, and the opponent is the current user
-            if (invitationEvent == null || invitationEvent.getStatus() != Event.EventStatus.PENDING
-                    || !invitationEvent.getOpponent().equals(currentUsername)) {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid invitation decline");
-            }
-
-            // Change the status of the event to DECLINED
-            invitationEvent.setStatus(Event.EventStatus.DECLINED);
-
-            // Update the event in the database
-            DatabaseHelper.getInstance().updateEvent(invitationEvent);
-
-            return new Response(Response.ResponseStatus.SUCCESS, "Invitation declined successfully");
-        } catch (SQLException e) {
-            // Log and return a failure response in case of an exception
-            logger.log(Level.SEVERE, "Error handling decline invitation: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Error declining invitation");
-        }
-    }
-    public Response handleAcknowledgeResponse(int eventId) {
-        DatabaseHelper dbHelper = DatabaseHelper.getInstance();
-
-        try {
-            // Get the event from the database
-            Event event = dbHelper.getEvent(eventId);
-
-            // Check if the event exists and the sender is the current user
-            if (event == null || !event.getSender().equals(currentUsername)) {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid event or unauthorized access");
-            }
-
-            // Check the response status and update the event accordingly
-            if (event.getStatus() == Event.EventStatus.DECLINED) {
-                // If the response was DECLINED, set the status to ABORTED
+                event.setStatus(Event.EventStatus.PLAYING);
+            } else if(event.getStatus() == Event.EventStatus.DECLINED) {
                 event.setStatus(Event.EventStatus.ABORTED);
-            } else if (event.getStatus() == Event.EventStatus.ACCEPTED) {
-                // If the response was ACCEPTED, set currentEventId to eventId
-                currentEventId = eventId;
-                // Abort any other pending invitations
-                dbHelper.abortAllUserEvents(currentUsername);
             }
-
-            // Update the event in the database
-            dbHelper.updateEvent(event);
-
-            return new Response(Response.ResponseStatus.SUCCESS, "Acknowledgment processed successfully");
-        } catch (SQLException e) {
-            // Handle SQLException
-            logger.log(Level.SEVERE, "Error handling acknowledgment response: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Database error");
-        }
-    }
-    public Response handleCompleteGame() {
-        DatabaseHelper dbHelper = DatabaseHelper.getInstance();
-
-        try {
-            // Get the event from the database
-            Event event = dbHelper.getEvent(currentEventId);
-
-            // Check if the event exists and the status is PLAYING
-            if (event == null || event.getStatus() != Event.EventStatus.PLAYING) {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid event or event not in PLAYING state");
-            }
-
-            // Set the status to COMPLETED
-            event.setStatus(Event.EventStatus.COMPLETED);
-
-            // Update the event in the database
-            dbHelper.updateEvent(event);
-
-            // Reset currentEventId to -1
-            currentEventId = -1;
-
-            return new Response(Response.ResponseStatus.SUCCESS, "Game completed successfully");
-        } catch (SQLException e) {
-            // Handle SQLException
-            logger.log(Level.SEVERE, "Error handling complete game: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Database error");
+            DatabaseHelper.getInstance().updateEvent(event);
+            return new Response(Response.ResponseStatus.SUCCESS, "Acknowledged");
+        } else {
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Event ID");
         }
     }
 
-    public Response handleAbortGame() {
-        DatabaseHelper dbHelper = DatabaseHelper.getInstance();
-
-        try {
-            // Get the event from the database
-            Event event = dbHelper.getEvent(currentEventId);
-
-            // Check if the event exists
-            if (event == null) {
-                return new Response(Response.ResponseStatus.FAILURE, "Invalid event");
-            }
-
-            // Log information for debugging
-            logger.log(Level.INFO, "Abort Game - Event ID: " + currentEventId +
-                    ", Event Status: " + event.getStatus() +
-                    ", Sender: " + event.getSender() +
-                    ", Opponent: " + event.getOpponent());
-
-            // Get the usernames of users involved in the event
-            String player1Username = event.getSender();
-            String player2Username = event.getOpponent();
-
-            // Set the users back to online status
-            User player1 = dbHelper.getUser(player1Username);
-            User player2 = dbHelper.getUser(player2Username);
-
-            if (player1 != null) {
-                player1.setOnline(true);
-                dbHelper.updateUser(player1);
-            }
-
-            if (player2 != null) {
-                player2.setOnline(true);
-                dbHelper.updateUser(player2);
-            }
-
-            // Set the status to ABORTED
-            event.setStatus(Event.EventStatus.ABORTED);
-
-            // Update the event in the database
-            dbHelper.updateEvent(event);
-
-            // Reset currentEventId to -1
-            currentEventId = -1;
-
-            return new Response(Response.ResponseStatus.SUCCESS, "Game aborted successfully");
-        } catch (SQLException e) {
-            // Handle SQLException
-            logger.log(Level.SEVERE, "Error handling abort game: " + e.getMessage(), e);
-            return new Response(Response.ResponseStatus.FAILURE, "Database error");
+    /**
+     * Handle request of type {@link Request.RequestType#COMPLETE_GAME}
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleCompleteGame() throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(currentEventId);
+        if(event == null || event.getStatus() != Event.EventStatus.PLAYING) {
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Game");
         }
+        event.setStatus(Event.EventStatus.COMPLETED);
+        currentEventId = -1;
+        DatabaseHelper.getInstance().updateEvent(event);
+        return new Response(Response.ResponseStatus.SUCCESS, "Game Completed");
     }
 
-
-
-
-
-
-
+    /**
+     * Handle request of type {@link Request.RequestType#ABORT_GAME}
+     * @return a standard response
+     * @throws SQLException When database error occurs
+     */
+    private Response handleAbortGame() throws SQLException {
+        Event event = DatabaseHelper.getInstance().getEvent(currentEventId);
+        if(event == null || event.getStatus() != Event.EventStatus.PLAYING) {
+            return new Response(Response.ResponseStatus.FAILURE, "Invalid Game");
+        }
+        event.setStatus(Event.EventStatus.ABORTED);
+        DatabaseHelper.getInstance().updateEvent(event);
+        currentEventId = -1;
+        return new Response(Response.ResponseStatus.SUCCESS, "Game Aborted");
+    }
 }
-

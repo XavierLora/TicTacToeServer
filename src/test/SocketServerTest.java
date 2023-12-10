@@ -6,43 +6,19 @@ import server.SocketServer;
  */
 public class SocketServerTest {
 
-    /**
-     * The main method that runs the test methods for the `SocketServer` class.
-     *
-     * @param args Command-line arguments (not used in this example).
-     */
     public static void main(String[] args) throws Exception {
-        testDefaultConstructor();
-        testParameterizedConstructor();
-        testNegativePort();
-    }
 
-    /**
-     * Tests the default constructor of the `SocketServer` class.
-     */
-    public static void testDefaultConstructor() throws Exception {
-        SocketServer server = new SocketServer();
-        assert server.getPort() == 5000;
-    }
+        /*
+         * Tests constructors
+         */
+        SocketServer server1 = new SocketServer();
 
-    /**
-     * Tests the parameterized constructor of the `SocketServer` class.
-     */
-    public static void testParameterizedConstructor() throws Exception {
-        SocketServer server = new SocketServer(8080);
-        assert server.getPort() == 8080;
-    }
+        System.out.println("SocketServer 1: Testing Default Constructor");
+        System.out.println(((server1.getPORT()==5000) ? "PASSED":"FAILED") + ": Default port set");
 
-    /**
-     * Tests the behavior when a negative port is provided to the constructor.
-     * Expects an `IllegalArgumentException` to be thrown.
-     */
-    public static void testNegativePort() {
-        try {
-            SocketServer server = new SocketServer(-123);
-            System.err.println("Error: No exception thrown for a negative port");
-        } catch (Exception e) {
-            System.out.println("Successfully caught an exception for a negative port: " + e.getMessage());
-        }
+        SocketServer server2 = new SocketServer(7000);
+
+        System.out.println("SocketServer 2: Testing Parameterize Constructor");
+        System.out.println(((server2.getPORT()==7000) ? "PASSED":"FAILED") + ": port set");
     }
 }

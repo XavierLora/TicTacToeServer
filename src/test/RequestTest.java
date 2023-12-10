@@ -12,37 +12,33 @@ public class RequestTest {
      * @param args Command-line arguments (not used in this example).
      */
     public static void main(String[] args) {
-        testDefaultConstructor();
-        testParameterizedConstructor();
-        testGettersAndSetters();
+
+        /*
+         * Tests constructors
+         */
+        Request request1 = new Request();
+
+        System.out.println("Request 1: Testing Default Constructor");
+        System.out.println(((request1.getType()==null) ? "PASSED":"FAILED") + ": type");
+        System.out.println(((request1.getData()==null) ? "PASSED":"FAILED") + ": data");
+
+        Request request2 = new Request(Request.RequestType.SEND_INVITATION, "bob");
+
+        System.out.println("Request 2: Testing Parameterized Constructor");
+        System.out.println(((request2.getType()==Request.RequestType.SEND_INVITATION) ? "PASSED":"FAILED") + ": type");
+        System.out.println(((request2.getData().equals("bob")) ? "PASSED":"FAILED") + ": data");
+
+        /*
+         * Tests all getters and setters
+         */
+        Request request3 = new Request();
+        request3.setType(Request.RequestType.SEND_INVITATION);
+        request3.setData("bob");
+
+        System.out.println("Request 3: Testing Getters and Setters");
+        System.out.println(((request3.getType()==Request.RequestType.SEND_INVITATION) ? "PASSED":"FAILED") + ": type");
+        System.out.println(((request3.getData().equals("bob")) ? "PASSED":"FAILED") + ": data");
+
     }
 
-    /**
-     * Tests the default constructor of the `Request` class.
-     */
-    public static void testDefaultConstructor() {
-        Request request = new Request();
-        assert request.getType() == Request.RequestType.LOGIN;
-        assert request.getData() == null;
-    }
-
-    /**
-     * Tests the parameterized constructor of the `Request` class.
-     */
-    public static void testParameterizedConstructor() {
-        Request request = new Request(Request.RequestType.REGISTER, "serializedData");
-        assert request.getType() == Request.RequestType.REGISTER;
-        assert request.getData().equals("serializedData");
-    }
-
-    /**
-     * Tests the getters and setters of the `Request` class.
-     */
-    public static void testGettersAndSetters() {
-        Request request = new Request();
-        request.setType(Request.RequestType.SEND_INVITATION);
-        request.setData("invitationData");
-        assert request.getType() == Request.RequestType.SEND_INVITATION;
-        assert request.getData().equals("invitationData");
-    }
 }

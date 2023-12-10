@@ -1,26 +1,35 @@
 package socket;
 
+import model.Event;
+
 /**
  * The `GamingResponse` class represents a response specific to gaming-related operations, extending the `Response` class.
  */
 public class GamingResponse extends Response {
-    private int move;
-    private boolean active;
 
     /**
-     * Default constructor for the `GamingResponse` class.
+     * The last move of the game, value is from 0-8
+     */
+    int move;
+
+    /**
+     * If the game is in play. That is {@link Event#getStatus()} is equal to {@link Event.EventStatus#PLAYING}
+     */
+    boolean active;
+
+    /**
+     * Default constructor, calls parent's class constructor
      */
     public GamingResponse() {
         super();
     }
 
     /**
-     * Parameterized constructor for the `GamingResponse` class, allowing you to set the response status, message, move, and activity status.
      *
-     * @param status  The response status (e.g., SUCCESS or ERROR).
-     * @param message The response message.
-     * @param move    The move associated with the gaming response.
-     * @param active  The activity status (e.g., true if active, false if not).
+     * @param status Status to indicate success or failure of the request
+     * @param message Explanation of the success or failure of the request
+     * @param move The last move of the game, value is from 0-8
+     * @param active If the game is in play. That is {@link Event#getStatus()} is equal to {@link Event.EventStatus#PLAYING}
      */
     public GamingResponse(ResponseStatus status, String message, int move, boolean active) {
         super(status, message);
@@ -28,37 +37,33 @@ public class GamingResponse extends Response {
         this.active = active;
     }
 
-    /**
-     * Gets the move associated with the gaming response.
-     *
-     * @return The move.
-     */
-    public int getMove() {
-        return move;
-    }
+/**
+ * Getter function for{@link #move} attribute
+ * @return lastMove
+ */
+public int getMove() {
+    return move;
+}
 
     /**
-     * Checks the activity status of the gaming response.
-     *
-     * @return `true` if the response is active, `false` if not.
-     */
-    public boolean getActive() {
-        return active;
-    }
-
-    /**
-     * Sets the move associated with the gaming response.
-     *
-     * @param move The new move to set.
+     * Setter function for {@link #move} attribute
+     * @param move The last move of the game, value is from 0-8
      */
     public void setMove(int move) {
         this.move = move;
     }
 
     /**
-     * Sets the activity status of the gaming response.
-     *
-     * @param active `true` if the response is active, `false` if not.
+     * Getter function for {@link #active} attribute
+     * @return active
+     */
+    public boolean isActive() {
+        return active;
+    }
+
+    /**
+     * Setter function for {@link #active} attribute
+     * @param active If the game is in play. That is {@link Event#getStatus()} is equal to {@link Event.EventStatus#PLAYING}
      */
     public void setActive(boolean active) {
         this.active = active;

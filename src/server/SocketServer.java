@@ -32,6 +32,7 @@ public class SocketServer {
     /**
      * The main function of the application
      * It instantiates the class, sets up the server and start accepting client's request
+     *
      * @param args command line arguments
      */
     public static void main(String[] args) {
@@ -39,7 +40,7 @@ public class SocketServer {
             SocketServer socketServer = new SocketServer();
             socketServer.setup();
             socketServer.startAcceptingRequest();
-        }catch (Exception e){
+        } catch (Exception e) {
             System.out.println(e.getMessage());
         }
     }
@@ -49,7 +50,7 @@ public class SocketServer {
      *
      * @throws Exception when invalid port is provided
      */
-    public SocketServer() throws Exception{
+    public SocketServer() throws Exception {
         this(5850);
     }
 
@@ -59,12 +60,16 @@ public class SocketServer {
      * @param port The socket server's port number
      * @throws Exception when invalid port is provided
      */
-    public SocketServer(int port) throws Exception{
-        if(port < 0){
+    public SocketServer(int port) throws Exception {
+        if (port < 0) {
             throw new Exception("Port number cannot be negative");
         }
         PORT = port;
         LOGGER = Logger.getLogger(SocketServer.class.getName());
+    }
+
+    public int getPORT() {
+        return PORT;
     }
 
     /**
@@ -73,31 +78,19 @@ public class SocketServer {
     private void setup() {
         try {
             serverSocket = new ServerSocket(PORT);
-            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
-            String localIP = "Unknown";
-
-            while (networkInterfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = networkInterfaces.nextElement();
-                Enumeration<InetAddress> interfaceAddresses = networkInterface.getInetAddresses();
-
-                while (interfaceAddresses.hasMoreElements()) {
-                    InetAddress address = interfaceAddresses.nextElement();
-
-                    if (!address.isLoopbackAddress() && !address.isLinkLocalAddress() && !address.isMulticastAddress()) {
-                        localIP = address.getHostAddress();
-                        break;
-                    }
-                }
-
-                if (!localIP.equals("Unknown")) {
-                    break;
-                }
-            }
-
-            LOGGER.log(Level.INFO, "Server started on local IP: " + localIP + ", port: " + PORT);
+            LOGGER.log(Level.INFO, "Server Initialization Succeeded"
+                    + "\nServer Host Name: " + InetAddress.getLocalHost().getHostName()
+                    + "\nServer IP: " + InetAddress.getLocalHost().getHostAddress()
+                    + "\nServer Port Number: " + PORT);
+        } catch (UnknownHostException e) {
+            LOGGER.log(Level.SEVERE, "Server Error: Unable to Resolve Host", e);
+            System.exit(1);
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error setting up the server: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Server Error: Server Initialization Failed", e);
+            System.exit(1);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Server Error: Unknown Exception Occurred", e);
+            System.exit(1);
         }
     }
 
@@ -105,29 +98,19 @@ public class SocketServer {
      * Start accepting client's request
      */
     private void startAcceptingRequest() {
-        try {
-            while (true) {
-                // Accept socket connection and create a new handler for each connection
+        //noinspection InfiniteLoopStatement
+        while (true) {
+            try {
+                // Accept socket connection from the all players and create a new handler to handle all connections
                 Socket socket = serverSocket.accept();
                 LOGGER.log(Level.INFO, "New Socket Client Connect with IP: " + socket.getRemoteSocketAddress());
-
-                // Create a new instance of ServerHandler without passing a hardcoded username
                 ServerHandler serverHandler = new ServerHandler(socket);
                 serverHandler.start();
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, "Server Error: Client Connection Failed", e);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Server Error: Unknown Exception Occurred", e);
             }
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Server Error: Client Connection Failed", e);
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Server Error: Unknown Exception Occurred", e);
         }
-    }
-
-    /**
-     * Getter for PORT attribute
-     *
-     * @return PORT
-     */
-    public int getPort() {
-        return PORT;
     }
 }

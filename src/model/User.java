@@ -5,24 +5,39 @@ package model;
  * password, display name, and online status.
  */
 public class User {
+    /**
+     * User's unique username
+     */
     private String username;
-    private String password;
-    private String displayName;
-    private boolean online;
 
     /**
-     * Default constructor for the `User` class.
+     * User's login password
+     */
+    private String password;
+
+    /**
+     * User's display name
+     */
+    private String displayName;
+
+    /**
+     * If the user is connected to the server
+     */
+    private boolean online;
+
+
+    /**
+     * Default constructor
      */
     public User() {
     }
 
     /**
-     * Parameterized constructor for the `User` class.
      *
-     * @param username     The username of the user.
-     * @param password     The user's password.
-     * @param displayName  The display name of the user.
-     * @param online       The online status of the user (true if online, false if offline).
+     * @param username User's unique username
+     * @param password User's login password
+     * @param displayName User's display name
+     * @param online If the user is connected to the server
      */
     public User(String username, String password, String displayName, boolean online) {
         this.username = username;
@@ -32,81 +47,82 @@ public class User {
     }
 
     /**
-     * Gets the username of the user.
-     *
-     * @return The username.
+     * Getter function for {@link #username} attribute
+     * @return username
      */
     public String getUsername() {
         return username;
     }
 
     /**
-     * Gets the user's password.
-     *
-     * @return The user's password.
-     */
-    public String getPassword() {
-        return password;
-    }
-
-    /**
-     * Gets the display name of the user.
-     *
-     * @return The display name.
-     */
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    /**
-     * Checks if the user is online.
-     *
-     * @return `true` if the user is online, `false` if the user is offline.
-     */
-    public boolean isOnline() {
-        return online;
-    }
-
-    /**
-     * Sets the username of the user.
-     *
-     * @param username The new username to set.
+     * Setter function for {@link #username} attribute
+     * @param username User's unique username
      */
     public void setUsername(String username) {
         this.username = username;
     }
 
     /**
-     * Sets the user's password.
-     *
-     * @param password The new password to set.
+     * Getter function for {@link #password} attribute
+     * @return password
+     */
+    public String getPassword() {
+        return password;
+    }
+
+    /**
+     * Setter function for {@link #password} attribute
+     * @param password User's login password
      */
     public void setPassword(String password) {
         this.password = password;
     }
 
     /**
-     * Sets the online status of the user.
-     *
-     * @param online `true` if the user is online, `false` if the user is offline.
+     * Getter function for {@link #displayName} attribute
+     * @return displayName
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    /**
+     * Setter function for {@link #displayName} attribute
+     * @param displayName User's display name
+     */
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * Getter function for {@link #online} attribute
+     * @return online
+     */
+    public Boolean isOnline() {
+        return online;
+    }
+
+    /**
+     * Setter function for {@link #online} attribute
+     * @param online If the user is connected to the server
      */
     public void setOnline(boolean online) {
         this.online = online;
     }
 
+
     /**
-     * Checks if this `User` object is equal to another object based on the username.
      *
-     * @param o The object to compare.
-     * @return `true` if the objects are equal (have the same username), `false` otherwise.
+     * @param obj instance of the other User object
+     * @return true if both objects have equal {@link #username}
      */
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        } else if (o == null || getClass() != o.getClass()) {
+    @Override
+    public boolean equals(Object obj) {
+        try {
+            User other = (User) obj;
+            return this.username.equals(other.getUsername());
+        } catch (ClassCastException e) {
             return false;
         }
-        User user = (User) o;
-        return username.equals(user.username);
     }
 }
